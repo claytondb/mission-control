@@ -15,6 +15,7 @@ interface Project {
   priority: Priority;
   revenue: string;
   url?: string;
+  repo?: string;
   localPath?: string;
   nextAction?: string;
   lastUpdated?: string;
@@ -34,7 +35,9 @@ const defaultProjects: Project[] = [
     priority: 'high',
     revenue: '$0/mo',
     url: 'https://sails.tax',
+    repo: 'salestaxjar',
     localPath: 'dc-salestaxjar',
+    lastUpdated: '2026-02-22',
   },
   {
     id: '2',
@@ -44,8 +47,10 @@ const defaultProjects: Project[] = [
     status: 'building',
     priority: 'high',
     revenue: '-',
+    repo: 'threetris',
     localPath: 'dc-threetris',
     nextAction: 'App Store submission',
+    lastUpdated: '2026-02-21',
   },
   {
     id: '3',
@@ -162,18 +167,22 @@ const defaultProjects: Project[] = [
     priority: 'low',
     revenue: '$0/mo',
     url: 'https://claytondb.github.io/finishmybookai/',
+    repo: 'finishmybookai',
     localPath: 'dc-finishmybookai',
+    lastUpdated: '2025-06-15',
   },
   {
     id: '14',
     name: 'FloraChroma',
     type: 'app',
     description: 'Flower color theme assistant. Helps learn color theory and make arrangements.',
-    status: 'building',
+    status: 'live',
     priority: 'low',
-    revenue: '-',
+    revenue: '$0/mo',
     url: 'https://claytondb.github.io/florachroma/',
+    repo: 'florachroma',
     localPath: 'dc-florachroma',
+    lastUpdated: '2025-06-04',
   },
   {
     id: '15',
@@ -184,7 +193,9 @@ const defaultProjects: Project[] = [
     priority: 'low',
     revenue: '$0/mo',
     url: 'https://claytondb.github.io/goodtimer/',
+    repo: 'goodtimer',
     localPath: 'dc-goodtimer',
+    lastUpdated: '2025-05-29',
   },
   {
     id: '16',
@@ -195,7 +206,9 @@ const defaultProjects: Project[] = [
     priority: 'low',
     revenue: '$0/mo',
     url: 'https://claytondb.github.io/mistakelfy/',
+    repo: 'mistakelfy',
     localPath: 'dc-mistakelfy',
+    lastUpdated: '2025-05-29',
   },
   {
     id: '17',
@@ -206,7 +219,9 @@ const defaultProjects: Project[] = [
     priority: 'low',
     revenue: '$0/mo',
     url: 'https://claytondb.github.io/qrgen/',
+    repo: 'qrgen',
     localPath: 'dc-qrgen',
+    lastUpdated: '2025-05-29',
   },
   {
     id: '18',
@@ -217,40 +232,48 @@ const defaultProjects: Project[] = [
     priority: 'low',
     revenue: '$0/mo',
     url: 'https://claytondb.github.io/randomfart/',
+    repo: 'randomfart',
     localPath: 'dc-randomfart',
+    lastUpdated: '2025-05-29',
   },
   {
     id: '19',
     name: 'SoundBuddy',
     type: 'app',
     description: 'Soundboard app for mobile, large easy buttons programmable',
-    status: 'building',
+    status: 'live',
     priority: 'low',
-    revenue: '-',
+    revenue: '$0/mo',
     url: 'https://claytondb.github.io/soundbuddy/',
+    repo: 'soundbuddy',
     localPath: 'dc-soundbuddy',
+    lastUpdated: '2025-05-29',
   },
   {
     id: '20',
     name: 'Time Travel Message',
     type: 'app',
     description: 'Create spacetime receiver that can get messages from the future, and send messages back to the past',
-    status: 'building',
+    status: 'live',
     priority: 'low',
-    revenue: '-',
+    revenue: '$0/mo',
     url: 'https://claytondb.github.io/timetravelmessage/',
+    repo: 'timetravelmessage',
     localPath: 'dc-timetravelmessage',
+    lastUpdated: '2025-06-03',
   },
   {
     id: '21',
     name: 'Cubicle Cat',
     type: 'game',
     description: 'Cat that just sits on your desk monitor and does stuff at random times while you\'re working.',
-    status: 'building',
+    status: 'live',
     priority: 'low',
-    revenue: '-',
+    revenue: '$0/mo',
     url: 'https://claytondb.github.io/cubiclecat/',
+    repo: 'cubiclecat',
     localPath: 'dc-cubiclecat',
+    lastUpdated: '2025-05-29',
   },
   {
     id: '22',
@@ -261,7 +284,9 @@ const defaultProjects: Project[] = [
     priority: 'low',
     revenue: '$0/mo',
     url: 'https://claytondb.github.io/applewarranty/',
+    repo: 'applewarranty',
     localPath: 'dc-applewarranty',
+    lastUpdated: '2025-05-29',
   },
 
   // BUILDING/STARTED
@@ -378,6 +403,30 @@ const defaultProjects: Project[] = [
     status: 'building',
     priority: 'low',
     revenue: '-',
+  },
+  {
+    id: '75',
+    name: 'Big Island VR',
+    type: 'game',
+    description: 'Explore the Big Island of Hawaii in VR',
+    status: 'building',
+    priority: 'medium',
+    revenue: '-',
+    url: 'https://bigislandvr.com',
+    repo: 'bigislandvr-quest',
+    lastUpdated: '2026-02-21',
+  },
+  {
+    id: '76',
+    name: 'Mission Control',
+    type: 'app',
+    description: 'Personal command center for projects and tools',
+    status: 'live',
+    priority: 'high',
+    revenue: '-',
+    url: 'https://mission-control-two-sand.vercel.app',
+    repo: 'mission-control',
+    lastUpdated: '2026-02-22',
   },
   {
     id: '35',
@@ -1037,12 +1086,24 @@ export default function ProjectTracker() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[var(--accent)] hover:underline text-sm"
+                        title="Live site"
                       >
                         🔗
                       </a>
                     )}
+                    {project.repo && (
+                      <a
+                        href={`https://github.com/claytondb/${project.repo}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--muted)] hover:text-[var(--accent)] text-sm"
+                        title="GitHub repo"
+                      >
+                        
+                      </a>
+                    )}
                     {project.localPath && (
-                      <span className="text-[var(--muted)] text-sm" title={project.localPath}>
+                      <span className="text-[var(--muted)] text-sm" title={`Local: ${project.localPath}`}>
                         📁
                       </span>
                     )}
