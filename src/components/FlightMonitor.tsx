@@ -33,17 +33,13 @@ interface PriceAlert {
 const ALERTS_STORAGE_KEY = 'mission-control-flight-alerts';
 const ROUTES_STORAGE_KEY = 'mission-control-flight-routes';
 
+// Trip dates: March 20-29, 2026
+const DEPART_DATE = '2026-03-20';
+const RETURN_DATE = '2026-03-29';
+
 // Generate Google Flights URL
 function getGoogleFlightsUrl(origin: string, destination: string): string {
-  // Default to ~6 weeks out, 1 week trip
-  const departDate = new Date();
-  departDate.setDate(departDate.getDate() + 42);
-  const returnDate = new Date(departDate);
-  returnDate.setDate(returnDate.getDate() + 7);
-  
-  const formatDate = (d: Date) => d.toISOString().split('T')[0];
-  
-  return `https://www.google.com/travel/flights?q=flights%20from%20${origin}%20to%20${destination}%20${formatDate(departDate)}%20to%20${formatDate(returnDate)}`;
+  return `https://www.google.com/travel/flights?q=flights%20from%20${origin}%20to%20${destination}%20${DEPART_DATE}%20to%20${RETURN_DATE}`;
 }
 
 const defaultRoutes: FlightRoute[] = [
@@ -263,8 +259,20 @@ export default function FlightMonitor() {
         </div>
       )}
 
+      {/* Trip Dates Banner */}
+      <div className="card mb-4 bg-[var(--accent)]/10 border-[var(--accent)]/30 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">📅</span>
+          <div>
+            <span className="font-medium">Trip Dates:</span>
+            <span className="ml-2">March 20 - 29, 2026</span>
+            <span className="text-[var(--muted)] ml-2">(9 nights)</span>
+          </div>
+        </div>
+      </div>
+
       {/* Route Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-4 mb-4">
         {routes.map((route) => (
           <div
             key={route.id}
@@ -331,6 +339,31 @@ export default function FlightMonitor() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Quick Search Links */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">🔗 Quick Search (Mar 20-29)</h3>
+          <div className="flex gap-3">
+            <a
+              href={`https://www.google.com/travel/flights?q=flights%20from%20ORD%20to%20KOA%20${DEPART_DATE}%20to%20${RETURN_DATE}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ghost text-sm"
+            >
+              🌺 ORD → Kona
+            </a>
+            <a
+              href={`https://www.google.com/travel/flights?q=flights%20from%20ORD%20to%20ITO%20${DEPART_DATE}%20to%20${RETURN_DATE}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ghost text-sm"
+            >
+              🌴 ORD → Hilo
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Price Chart */}
@@ -481,44 +514,6 @@ export default function FlightMonitor() {
         </div>
       </div>
 
-      {/* Quick Search Links */}
-      <div className="mt-6 card">
-        <h3 className="font-semibold mb-4">🔗 Quick Search Links</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <a
-            href="https://www.google.com/travel/flights?q=flights%20from%20ORD%20to%20KOA"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost text-center"
-          >
-            ORD → Kona
-          </a>
-          <a
-            href="https://www.google.com/travel/flights?q=flights%20from%20ORD%20to%20ITO"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost text-center"
-          >
-            ORD → Hilo
-          </a>
-          <a
-            href="https://www.google.com/travel/flights?q=flights%20from%20ORD%20to%20HNL"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost text-center"
-          >
-            ORD → Honolulu
-          </a>
-          <a
-            href="https://www.google.com/travel/flights?q=flights%20from%20ORD%20to%20OGG"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost text-center"
-          >
-            ORD → Maui
-          </a>
-        </div>
       </div>
-    </div>
   );
 }
