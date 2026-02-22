@@ -4,8 +4,9 @@ import { useState } from 'react';
 import ProjectTracker from '@/components/ProjectTracker';
 import FlightMonitor from '@/components/FlightMonitor';
 import QuickCapture from '@/components/QuickCapture';
+import IkeaCase from '@/components/IkeaCase';
 
-type Tool = 'projects' | 'flights' | 'capture';
+type Tool = 'projects' | 'flights' | 'capture' | 'ikea';
 
 export default function Home() {
   const [activeTool, setActiveTool] = useState<Tool>('projects');
@@ -14,6 +15,7 @@ export default function Home() {
     { id: 'projects' as Tool, name: 'Projects', icon: '📦', desc: 'Track all projects' },
     { id: 'flights' as Tool, name: 'Hawaii Flights', icon: '🌺', desc: 'Price monitor' },
     { id: 'capture' as Tool, name: 'Quick Capture', icon: '⚡', desc: 'Notes & tasks' },
+    { id: 'ikea' as Tool, name: 'IKEA Case', icon: '⚖️', desc: 'Lawsuit tracker' },
   ];
 
   return (
@@ -64,6 +66,7 @@ export default function Home() {
           {activeTool === 'projects' && <ProjectTracker />}
           {activeTool === 'flights' && <FlightMonitor />}
           {activeTool === 'capture' && <QuickCapture />}
+          {activeTool === 'ikea' && <IkeaCase />}
         </div>
       </div>
     </div>
