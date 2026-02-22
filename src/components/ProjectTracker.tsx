@@ -831,19 +831,120 @@ export default function ProjectTracker() {
     status: 'idea' as Status, 
     priority: 'medium' as Priority 
   });
+  const [syncStatus, setSyncStatus] = useState<'loading' | 'synced' | 'saving' | 'error' | 'offline'>('loading');
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [useLocalStorage, setUseLocalStorage] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from API on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      setProjects(JSON.parse(saved));
-    }
+    const loadProjects = async () => {
+      setSyncStatus('loading');
+      try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        
+        if (data.useLocalStorage || data.error) {
+          // Fall back to localStorage if API not configured
+          setUseLocalStorage(true);
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            setProjects(JSON.parse(saved));
+          }
+          setSyncStatus('offline');
+          return;
+        }
+        
+        if (data.projects && data.projects.length > 0) {
+          setProjects(data.projects);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data.projects));
+        } else if (!data.initialized) {
+          // First time - initialize with defaults
+          await saveToApi(defaultProjects);
+        }
+        
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+        // Fall back to localStorage
+        setUseLocalStorage(true);
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          setProjects(JSON.parse(saved));
+        }
+        setSyncStatus('offline');
+      }
+    };
+    
+    loadProjects();
   }, []);
 
-  // Save to localStorage on change (after initial load)
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  }, [projects]);
+  // Save to API
+  const saveToApi = async (projectsToSave: Project[]) => {
+    if (useLocalStorage) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projectsToSave));
+      return;
+    }
+    
+    setSyncStatus('saving');
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projects: projectsToSave }),
+      });
+      
+      if (res.ok) {
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(projectsToSave));
+      } else {
+        throw new Error('Save failed');
+      }
+    } catch (error) {
+      console.error('Failed to save:', error);
+      setSyncStatus('error');
+      // Still save to localStorage as backup
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projectsToSave));
+    }
+  };
+
+  // Update single project via API
+  const updateProjectApi = async (id: string, updates: Partial<Project>) => {
+    if (useLocalStorage) {
+      const updated = projects.map(p => p.id === id ? { ...p, ...updates } : p);
+      setProjects(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return;
+    }
+    
+    setSyncStatus('saving');
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, updates }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        const updated = projects.map(p => p.id === id ? data.project : p);
+        setProjects(updated);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        setSyncStatus('synced');
+        setLastSynced(new Date().toLocaleTimeString());
+      } else {
+        throw new Error('Update failed');
+      }
+    } catch (error) {
+      console.error('Failed to update:', error);
+      setSyncStatus('error');
+      // Still update locally
+      const updated = projects.map(p => p.id === id ? { ...p, ...updates } : p);
+      setProjects(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    }
+  };
 
   const filteredProjects = projects
     .filter(p => filter === 'all' || p.status === filter)
@@ -860,7 +961,7 @@ export default function ProjectTracker() {
     total: projects.length,
   };
 
-  const addProject = () => {
+  const addProject = async () => {
     if (!newProject.name.trim()) return;
     const project: Project = {
       id: Date.now().toString(),
@@ -872,32 +973,96 @@ export default function ProjectTracker() {
       revenue: '-',
       lastUpdated: new Date().toISOString().split('T')[0],
     };
-    setProjects([project, ...projects]);
+    const updated = [project, ...projects];
+    setProjects(updated);
     setNewProject({ name: '', description: '', type: 'app', status: 'idea', priority: 'medium' });
     setShowAddForm(false);
+    await saveToApi(updated);
   };
 
   const updateStatus = (id: string, status: Status) => {
+    updateProjectApi(id, { status });
+    // Optimistic update
     setProjects(projects.map(p => 
       p.id === id ? { ...p, status, lastUpdated: new Date().toISOString().split('T')[0] } : p
     ));
   };
 
   const updatePriority = (id: string, priority: Priority) => {
+    updateProjectApi(id, { priority });
+    // Optimistic update
     setProjects(projects.map(p => 
       p.id === id ? { ...p, priority } : p
     ));
   };
 
-  const resetToDefault = () => {
+  const resetToDefault = async () => {
     if (confirm('Reset all projects to default? This will lose any changes.')) {
-      localStorage.removeItem(STORAGE_KEY);
       setProjects(defaultProjects);
+      await saveToApi(defaultProjects);
     }
   };
 
+  const exportToGoogleSheets = () => {
+    // Generate CSV content
+    const headers = ['Name', 'Type', 'Description', 'Status', 'Priority', 'Revenue', 'URL', 'Repo', 'Local Path', 'Last Updated'];
+    const rows = projects.map(p => [
+      p.name,
+      p.type,
+      p.description,
+      p.status,
+      p.priority,
+      p.revenue,
+      p.url || '',
+      p.repo || '',
+      p.localPath || '',
+      p.lastUpdated || ''
+    ]);
+    
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `projects-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getSyncStatusDisplay = () => {
+    switch (syncStatus) {
+      case 'loading': return { text: 'Loading...', color: 'text-[var(--muted)]', icon: '⏳' };
+      case 'synced': return { text: `Synced${lastSynced ? ` at ${lastSynced}` : ''}`, color: 'text-[var(--success)]', icon: '✓' };
+      case 'saving': return { text: 'Saving...', color: 'text-[var(--warning)]', icon: '💾' };
+      case 'error': return { text: 'Sync error', color: 'text-red-400', icon: '⚠️' };
+      case 'offline': return { text: 'Offline mode', color: 'text-[var(--muted)]', icon: '📴' };
+      default: return { text: '', color: '', icon: '' };
+    }
+  };
+
+  const syncStatusDisplay = getSyncStatusDisplay();
+
   return (
     <div>
+      {/* Sync Status Bar */}
+      <div className="flex justify-between items-center mb-4">
+        <div className={`flex items-center gap-2 text-sm ${syncStatusDisplay.color}`}>
+          <span>{syncStatusDisplay.icon}</span>
+          <span>{syncStatusDisplay.text}</span>
+        </div>
+        <button 
+          onClick={exportToGoogleSheets}
+          className="btn btn-ghost text-sm"
+          title="Download CSV to import into Google Sheets"
+        >
+          📊 Export to CSV
+        </button>
+      </div>
+
       {/* Stats Bar */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="card text-center cursor-pointer hover:border-[var(--success)]" onClick={() => setFilter(filter === 'live' ? 'all' : 'live')}>
