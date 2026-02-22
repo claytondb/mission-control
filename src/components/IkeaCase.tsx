@@ -220,6 +220,380 @@ const fileTypeConfig = {
   correspondence: { emoji: '✉️', label: 'Correspondence' },
 };
 
+// Helper to detect file hosting service
+function getFileService(url: string): 'google' | 'dropbox' | 'onedrive' | 'icloud' | 'other' {
+  if (url.includes('drive.google.com') || url.includes('docs.google.com')) return 'google';
+  if (url.includes('dropbox.com')) return 'dropbox';
+  if (url.includes('onedrive.live.com') || url.includes('1drv.ms')) return 'onedrive';
+  if (url.includes('icloud.com')) return 'icloud';
+  return 'other';
+}
+
+// Helper to get preview URL for different services
+function getPreviewUrl(url: string): string {
+  const service = getFileService(url);
+  
+  if (service === 'google') {
+    // Convert Google Drive share link to preview
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileIdMatch) {
+      return `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+    }
+  }
+  
+  return url;
+}
+
+// Helper to get download URL
+function getDownloadUrl(url: string): string | null {
+  const service = getFileService(url);
+  
+  if (service === 'google') {
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileIdMatch) {
+      return `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+    }
+  }
+  
+  if (service === 'dropbox') {
+    return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?dl=1');
+  }
+  
+  return url;
+}
+
+interface FileManagerProps {
+  files: CaseFile[];
+  onFilesChange: (files: CaseFile[]) => void;
+  showAddFile: boolean;
+  setShowAddFile: (show: boolean) => void;
+  newFile: { name: string; type: CaseFile['type']; url: string; description: string };
+  setNewFile: (file: { name: string; type: CaseFile['type']; url: string; description: string }) => void;
+  addFile: () => void;
+}
+
+function FileManager({ files, onFilesChange, showAddFile, setShowAddFile, newFile, setNewFile, addFile }: FileManagerProps) {
+  const [previewFile, setPreviewFile] = useState<CaseFile | null>(null);
+  const [editingFile, setEditingFile] = useState<CaseFile | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = async (url: string, fileId: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(fileId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const deleteFile = (id: string) => {
+    if (confirm('Delete this file?')) {
+      onFilesChange(files.filter(f => f.id !== id));
+    }
+  };
+
+  const updateFile = (updatedFile: CaseFile) => {
+    onFilesChange(files.map(f => f.id === updatedFile.id ? updatedFile : f));
+    setEditingFile(null);
+  };
+
+  const getServiceBadge = (url: string) => {
+    const service = getFileService(url);
+    const badges = {
+      google: { label: 'Google Drive', color: 'bg-blue-500/20 text-blue-400' },
+      dropbox: { label: 'Dropbox', color: 'bg-blue-600/20 text-blue-300' },
+      onedrive: { label: 'OneDrive', color: 'bg-sky-500/20 text-sky-400' },
+      icloud: { label: 'iCloud', color: 'bg-gray-500/20 text-gray-300' },
+      other: { label: 'Link', color: 'bg-gray-500/20 text-gray-400' },
+    };
+    return badges[service];
+  };
+
+  return (
+    <div>
+      {/* Preview Modal */}
+      {previewFile && previewFile.url && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewFile(null)}>
+          <div className="bg-[var(--card)] rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-4 border-b border-[var(--border)]">
+              <div>
+                <h3 className="font-semibold">{previewFile.name}</h3>
+                <p className="text-sm text-[var(--muted)]">{previewFile.description}</p>
+              </div>
+              <div className="flex gap-2">
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-ghost text-sm"
+                >
+                  Open in New Tab ↗
+                </a>
+                {getDownloadUrl(previewFile.url) && (
+                  <a
+                    href={getDownloadUrl(previewFile.url)!}
+                    download
+                    className="btn btn-ghost text-sm"
+                  >
+                    Download ⬇
+                  </a>
+                )}
+                <button className="btn btn-ghost text-sm" onClick={() => setPreviewFile(null)}>
+                  Close ✕
+                </button>
+              </div>
+            </div>
+            <div className="h-[70vh]">
+              {previewFile.type === 'photo' ? (
+                <img 
+                  src={previewFile.url} 
+                  alt={previewFile.name}
+                  className="w-full h-full object-contain"
+                />
+              ) : previewFile.type === 'video' ? (
+                <video 
+                  src={previewFile.url} 
+                  controls
+                  className="w-full h-full"
+                />
+              ) : (
+                <iframe
+                  src={getPreviewUrl(previewFile.url)}
+                  className="w-full h-full border-0"
+                  allow="autoplay"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingFile && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setEditingFile(null)}>
+          <div className="bg-[var(--card)] rounded-xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-4">Edit File</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Name</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={editingFile.name}
+                  onChange={(e) => setEditingFile({ ...editingFile, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">URL</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={editingFile.url || ''}
+                  onChange={(e) => setEditingFile({ ...editingFile, url: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Description</label>
+                <textarea
+                  className="input"
+                  rows={2}
+                  value={editingFile.description || ''}
+                  onChange={(e) => setEditingFile({ ...editingFile, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-[var(--muted)] mb-1 block">Type</label>
+                <select
+                  className="input"
+                  value={editingFile.type}
+                  onChange={(e) => setEditingFile({ ...editingFile, type: e.target.value as CaseFile['type'] })}
+                >
+                  <option value="document">📄 Document</option>
+                  <option value="report">📋 Report</option>
+                  <option value="correspondence">✉️ Correspondence</option>
+                  <option value="photo">📷 Photo</option>
+                  <option value="video">🎥 Video</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button className="btn btn-primary" onClick={() => updateFile(editingFile)}>Save</button>
+              <button className="btn btn-ghost" onClick={() => setEditingFile(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold">Case Files & Documents</h3>
+        <button className="btn btn-primary" onClick={() => setShowAddFile(!showAddFile)}>
+          + Add File
+        </button>
+      </div>
+
+      {/* Tip for adding files */}
+      <div className="card mb-4 bg-[var(--accent)]/10 border-[var(--accent)]/30">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">💡</span>
+          <div className="text-sm">
+            <strong>To add files:</strong> Upload to Google Drive, Dropbox, or OneDrive first, then paste the share link here.
+            Files will be previewable directly in Mission Control.
+          </div>
+        </div>
+      </div>
+
+      {showAddFile && (
+        <div className="card mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <input
+              type="text"
+              className="input"
+              placeholder="File Name"
+              value={newFile.name}
+              onChange={(e) => setNewFile({ ...newFile, name: e.target.value })}
+            />
+            <select
+              className="input"
+              value={newFile.type}
+              onChange={(e) => setNewFile({ ...newFile, type: e.target.value as CaseFile['type'] })}
+            >
+              <option value="document">📄 Document</option>
+              <option value="report">📋 Report</option>
+              <option value="correspondence">✉️ Correspondence</option>
+              <option value="photo">📷 Photo</option>
+              <option value="video">🎥 Video</option>
+            </select>
+            <input
+              type="text"
+              className="input col-span-2"
+              placeholder="Paste Google Drive, Dropbox, or direct URL..."
+              value={newFile.url}
+              onChange={(e) => setNewFile({ ...newFile, url: e.target.value })}
+            />
+            <input
+              type="text"
+              className="input col-span-2"
+              placeholder="Description"
+              value={newFile.description}
+              onChange={(e) => setNewFile({ ...newFile, description: e.target.value })}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button className="btn btn-primary" onClick={addFile}>Add File</button>
+            <button className="btn btn-ghost" onClick={() => setShowAddFile(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {files.map((file) => (
+          <div 
+            key={file.id} 
+            className="card p-4 hover:border-[var(--accent)] transition-all cursor-pointer"
+          >
+            <div className="flex items-start gap-4">
+              {/* File Icon - clickable for preview */}
+              <button 
+                onClick={() => file.url && setPreviewFile(file)}
+                className="text-3xl hover:scale-110 transition-transform"
+                title={file.url ? 'Click to preview' : 'No URL attached'}
+              >
+                {fileTypeConfig[file.type].emoji}
+              </button>
+              
+              {/* File Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span 
+                    className="font-medium hover:text-[var(--accent)] cursor-pointer"
+                    onClick={() => file.url && setPreviewFile(file)}
+                  >
+                    {file.name}
+                  </span>
+                  {file.url && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getServiceBadge(file.url).color}`}>
+                      {getServiceBadge(file.url).label}
+                    </span>
+                  )}
+                </div>
+                {file.description && (
+                  <div className="text-sm text-[var(--muted)] mb-1">{file.description}</div>
+                )}
+                <div className="text-xs text-[var(--muted)]">
+                  Added: {file.dateAdded}
+                  {file.localPath && <span className="ml-2">📁 {file.localPath}</span>}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-1 flex-shrink-0">
+                {file.url && (
+                  <>
+                    <button
+                      onClick={() => setPreviewFile(file)}
+                      className="btn btn-ghost text-xs px-2 py-1"
+                      title="Preview"
+                    >
+                      👁️
+                    </button>
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-ghost text-xs px-2 py-1"
+                      title="Open in new tab"
+                    >
+                      ↗️
+                    </a>
+                    {getDownloadUrl(file.url) && (
+                      <a
+                        href={getDownloadUrl(file.url)!}
+                        download
+                        className="btn btn-ghost text-xs px-2 py-1"
+                        title="Download"
+                      >
+                        ⬇️
+                      </a>
+                    )}
+                    <button
+                      onClick={() => copyToClipboard(file.url!, file.id)}
+                      className="btn btn-ghost text-xs px-2 py-1"
+                      title="Copy link to share"
+                    >
+                      {copiedId === file.id ? '✓' : '🔗'}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setEditingFile(file)}
+                  className="btn btn-ghost text-xs px-2 py-1"
+                  title="Edit"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => deleteFile(file.id)}
+                  className="btn btn-ghost text-xs px-2 py-1 hover:text-red-400"
+                  title="Delete"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {files.length === 0 && (
+        <div className="text-center py-8 text-[var(--muted)]">
+          No files yet. Add your first file above.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function IkeaCase() {
   const [data, setData] = useState<CaseData>({
     attorneys: defaultAttorneys,
@@ -609,85 +983,15 @@ export default function IkeaCase() {
 
       {/* Files Tab */}
       {activeTab === 'files' && (
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold">Case Files & Documents</h3>
-            <button className="btn btn-primary" onClick={() => setShowAddFile(!showAddFile)}>
-              + Add File
-            </button>
-          </div>
-
-          {showAddFile && (
-            <div className="card mb-4">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="File Name"
-                  value={newFile.name}
-                  onChange={(e) => setNewFile({ ...newFile, name: e.target.value })}
-                />
-                <select
-                  className="input"
-                  value={newFile.type}
-                  onChange={(e) => setNewFile({ ...newFile, type: e.target.value as CaseFile['type'] })}
-                >
-                  <option value="document">📄 Document</option>
-                  <option value="report">📋 Report</option>
-                  <option value="correspondence">✉️ Correspondence</option>
-                  <option value="photo">📷 Photo</option>
-                  <option value="video">🎥 Video</option>
-                </select>
-                <input
-                  type="text"
-                  className="input col-span-2"
-                  placeholder="URL or file path"
-                  value={newFile.url}
-                  onChange={(e) => setNewFile({ ...newFile, url: e.target.value })}
-                />
-                <input
-                  type="text"
-                  className="input col-span-2"
-                  placeholder="Description"
-                  value={newFile.description}
-                  onChange={(e) => setNewFile({ ...newFile, description: e.target.value })}
-                />
-              </div>
-              <div className="flex gap-2">
-                <button className="btn btn-primary" onClick={addFile}>Add</button>
-                <button className="btn btn-ghost" onClick={() => setShowAddFile(false)}>Cancel</button>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {data.files.map((file) => (
-              <div key={file.id} className="card flex items-center gap-4 p-4">
-                <span className="text-2xl">{fileTypeConfig[file.type].emoji}</span>
-                <div className="flex-1">
-                  <div className="font-medium">{file.name}</div>
-                  {file.description && (
-                    <div className="text-sm text-[var(--muted)]">{file.description}</div>
-                  )}
-                  <div className="text-xs text-[var(--muted)] mt-1">
-                    Added: {file.dateAdded}
-                    {file.localPath && <span className="ml-2">📁 {file.localPath}</span>}
-                  </div>
-                </div>
-                {file.url && (
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-ghost text-sm"
-                  >
-                    Open
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <FileManager 
+          files={data.files} 
+          onFilesChange={(files) => setData({ ...data, files })}
+          showAddFile={showAddFile}
+          setShowAddFile={setShowAddFile}
+          newFile={newFile}
+          setNewFile={setNewFile}
+          addFile={addFile}
+        />
       )}
     </div>
   );
