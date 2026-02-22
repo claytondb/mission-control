@@ -1039,20 +1039,53 @@ export default function ProjectTracker() {
       case 'synced': return { text: `Synced${lastSynced ? ` at ${lastSynced}` : ''}`, color: 'text-[var(--success)]', icon: '✓' };
       case 'saving': return { text: 'Saving...', color: 'text-[var(--warning)]', icon: '💾' };
       case 'error': return { text: 'Sync error', color: 'text-red-400', icon: '⚠️' };
-      case 'offline': return { text: 'Offline mode', color: 'text-[var(--muted)]', icon: '📴' };
+      case 'offline': return { text: 'Offline mode (database not connected)', color: 'text-yellow-400', icon: '📴' };
       default: return { text: '', color: '', icon: '' };
     }
   };
 
   const syncStatusDisplay = getSyncStatusDisplay();
 
+  const syncNow = async () => {
+    setSyncStatus('loading');
+    try {
+      const res = await fetch('/api/projects');
+      const data = await res.json();
+      
+      if (data.error || data.useLocalStorage) {
+        setSyncStatus('offline');
+        return;
+      }
+      
+      if (data.projects && data.projects.length > 0) {
+        setProjects(data.projects);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data.projects));
+      }
+      
+      setSyncStatus('synced');
+      setLastSynced(new Date().toLocaleTimeString());
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncStatus('error');
+    }
+  };
+
   return (
     <div>
       {/* Sync Status Bar */}
-      <div className="flex justify-between items-center mb-4">
-        <div className={`flex items-center gap-2 text-sm ${syncStatusDisplay.color}`}>
-          <span>{syncStatusDisplay.icon}</span>
-          <span>{syncStatusDisplay.text}</span>
+      <div className="flex justify-between items-center mb-4 p-3 bg-[var(--card)] rounded-lg border border-[var(--border)]">
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-2 text-sm ${syncStatusDisplay.color}`}>
+            <span>{syncStatusDisplay.icon}</span>
+            <span>{syncStatusDisplay.text}</span>
+          </div>
+          <button 
+            onClick={syncNow}
+            className="btn btn-ghost text-xs"
+            disabled={syncStatus === 'loading' || syncStatus === 'saving'}
+          >
+            🔄 Sync Now
+          </button>
         </div>
         <button 
           onClick={exportToGoogleSheets}
@@ -1115,9 +1148,6 @@ export default function ProjectTracker() {
         </select>
         <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
           + Add
-        </button>
-        <button className="btn btn-ghost text-sm" onClick={resetToDefault}>
-          Reset
         </button>
       </div>
 
